@@ -8,9 +8,9 @@ Fun fact: If scaled to the size of the Earth, each segment would cover 2.62 mill
 
 ## How it is made
 
-The segments come from a 195-faced Catalan-like polyhedron projected onto the sphere.
-https://github.com/thomas-shapiro/catalan-like-solid-generator
-https://github.com/thomas-shapiro/catalan-like-solid-viewer
+The segments come from a 195-faced Catalan-like polyhedron projected onto the sphere 
+(https://github.com/thomas-shapiro/catalan-like-solid-generator,
+https://github.com/thomas-shapiro/catalan-like-solid-viewer). 
 The vertices were then adjusted so that every segment covers exactly 1/195 of the sphere. Countries are assigned to segments so that neighboring segments correspond to neighboring countries on Earth, which was impossible for some countries that either have too many neighbors or too few neighbors. In those cases, approximate mapping was used.
 
 ## Files
