@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Equal Earth</title>
+<meta name="description" content="A sphere divided into 195 segments of equal area, one for each country of the world.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed globe on a night ground; map-label typography floats at the edges. Deliberately dark-only. */
+:root {
+  --ground: #0b1220;
+  --ground-2: #16223a;
+  --ink: #eef2f8;
+  --ink-soft: #9aa8bf;
+  --rule: rgba(238, 242, 248, 0.14);
+  --panel: rgba(13, 21, 37, 0.82);
+  --accent: #f2b544;
+  --font-label: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(120% 90% at 50% 45%, var(--ground-2) 0%, var(--ground) 62%);
+  background-color: var(--ground);
+  color: var(--ink);
+  font: 15px/1.45 var(--font-body);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+#stage { position: fixed; inset: 0; touch-action: none; }
+#stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+#stage canvas.pointing { cursor: pointer; }
+#stage canvas:active { cursor: grabbing; }
+
+.masthead {
+  position: fixed;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  left: max(20px, env(safe-area-inset-left, 0px));
+  right: max(20px, env(safe-area-inset-right, 0px));
+  max-width: 26rem;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  pointer-events: none;
+}
+.masthead > * { pointer-events: auto; }
+.title {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: 700 clamp(1.6rem, 4.2vw, 2.4rem)/1 var(--font-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.title sup { font-size: 0.55em; color: var(--accent); margin-left: 0.08em; vertical-align: 0.7em; }
+.title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
+.about {
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  backdrop-filter: blur(6px);
+  display: grid;
+  gap: 8px;
+}
+.about p { margin: 0; color: var(--ink); }
+.about .figure { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.about .credit { color: var(--ink-soft); font-size: 0.82rem; }
+.about a { color: var(--ink-soft); }
+
+.finder {
+  position: fixed;
+  left: max(20px, env(safe-area-inset-left, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.finder label {
+  font: 600 0.8rem/1 var(--font-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.finder input {
+  width: min(15rem, 52vw);
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  color: var(--ink);
+  font: 500 0.95rem/1.2 var(--font-body);
+  backdrop-filter: blur(6px);
+}
+.finder input::placeholder { color: var(--ink-soft); }
+.finder input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.hint {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  margin: 0;
+  font: 500 0.78rem/1.3 var(--font-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: right;
+  pointer-events: none;
+}
+.hint a { color: var(--ink-soft); pointer-events: auto; }
+
+#tip {
+  position: fixed;
+  left: 0; top: 0;
+  pointer-events: none;
+  padding: 7px 12px 8px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+  transform: translate(-9999px, 0);
+  display: grid;
+  gap: 1px;
+}
+#tip .name { font: 700 1.15rem/1.1 var(--font-label); letter-spacing: 0.04em; text-transform: uppercase; }
+#tip .meta { font: 500 0.78rem/1.2 var(--font-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+
+#status {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  font: 600 0.9rem/1 var(--font-label);
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+@media (max-width: 560px) {
+  .hint { display: none; }
+  .finder { right: max(20px, env(safe-area-inset-right, 0px)); }
+  .finder input { width: 100%; flex: 1; }
+}
+</style>
+</head>
+<body>
+<div id="stage" aria-label="Interactive globe of 195 countries, each with an equal area"></div>
+
+<header class="masthead">
+  <button class="title" id="title" type="button" aria-expanded="false" aria-controls="about">Equal Earth<sup aria-hidden="true">*</sup></button>
+  <section class="about" id="about" hidden>
+    <p>A sphere divided into 195 segments of equal area, one for each country of the world: the 193 member states of the United Nations and its two non-member observer states, the Holy See and the State of Palestine.</p>
+    <p>Fun fact: scaled to the size of the Earth, each segment would cover about <span class="figure">2.62 million km²</span>.</p>
+    <p class="credit">By Thomas Shapiro · <a href="https://github.com/thomas-shapiro/equal-earth" target="_blank" rel="noopener">Source</a> · Flags adapted from <a href="https://github.com/lipis/flag-icons" target="_blank" rel="noopener">flag-icons</a></p>
+  </section>
+</header>
+
+<form class="finder" id="finder" autocomplete="off">
+  <label for="country-search">Find</label>
+  <input id="country-search" list="country-list" placeholder="Country name" aria-label="Find a country">
+  <datalist id="country-list"></datalist>
+</form>
+
+<p class="hint">Drag to rotate · Scroll or pinch to zoom</p>
+
+<div id="tip" role="status" aria-live="polite"><span class="name"></span><span class="meta"></span></div>
+<div id="status">Loading flags…</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const SUBDIV = 8;            // grid subdivision per fan sector of each cell
+const LIFT = 0.012;          // how far the hovered country rises
+
+const stage = document.getElementById('stage');
+const tip = document.getElementById('tip');
+const statusEl = document.getElementById('status');
+const masthead = document.querySelector('.masthead');
+const hint = document.querySelector('.hint');
+const titleBtn = document.getElementById('title');
+const about = document.getElementById('about');
+function setAbout(open) { about.hidden = !open; titleBtn.setAttribute('aria-expanded', String(open)); }
+titleBtn.addEventListener('click', () => setAbout(about.hidden));
+addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setAbout(false); });
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
+camera.position.set(0, 0.9, 3.9);
+scene.add(camera);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8090b0, 1.35));
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(-1.2, 1.4, 2.5);
+camera.add(key);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 1.35;
+controls.maxDistance = 7;
+controls.autoRotate = !reduceMotion;
+controls.autoRotateSpeed = 0.55;
+controls.addEventListener('start', () => { controls.autoRotate = false; });
+controls.addEventListener('change', () => {
+  controls.rotateSpeed = Math.max(0.12, (camera.position.length() - 1) / 2.9);
+});
+
+// white ground sphere: the gaps between flags show it as borders
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(0.997, 160, 120),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 })
+));
+
+const hoverUniform = { value: -1 };
+
+function makeMaterial(tex) {
+  const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uHover = hoverUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float cell;\nuniform float uHover;\nvarying float vHi;')
+      .replace('#include <begin_vertex>',
+        `#include <begin_vertex>\nvHi = 1.0 - step(0.5, abs(cell - uHover));\ntransformed *= 1.0 + ${LIFT.toFixed(4)} * vHi;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vHi;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 + 0.22 * vHi;');
+  };
+  return m;
+}
+
+function buildCells(cells, texIndex, key = 'inner', radius = 1) {
+  const pos = [], uv = [], cellAttr = [], index = [];
+  const v3 = new THREE.Vector3();
+  cells.forEach((cl, ci) => {
+    if (texIndex >= 0 && cl.tex !== texIndex) return;
+    const c = new THREE.Vector3(...cl.c), e = new THREE.Vector3(...cl.e), n = new THREE.Vector3(...cl.n);
+    const [u0, v0, sz] = cl.tile, s = cl.s, poly = cl[key], k = poly.length;
+    for (let j = 0; j < k; j++) {
+      const A = poly[j], B = poly[(j + 1) % k];
+      const base = pos.length / 3, id = {};
+      let m = 0;
+      for (let a = 0; a <= SUBDIV; a++) for (let b = 0; b <= SUBDIV - a; b++) {
+        const pu = (a * A[0] + b * B[0]) / SUBDIV, pw = (a * A[1] + b * B[1]) / SUBDIV;
+        v3.copy(c).addScaledVector(e, pu).addScaledVector(n, pw).normalize().multiplyScalar(radius);
+        pos.push(v3.x, v3.y, v3.z);
+        uv.push(u0 + (0.5 + pu / (2 * s)) * sz, v0 + (0.5 + pw / (2 * s)) * sz);
+        cellAttr.push(ci);
+        id[a + ',' + b] = base + m++;
+      }
+      for (let a = 0; a < SUBDIV; a++) for (let b = 0; b < SUBDIV - a; b++) {
+        index.push(id[a + ',' + b], id[(a + 1) + ',' + b], id[a + ',' + (b + 1)]);
+        if (a + b + 2 <= SUBDIV) index.push(id[(a + 1) + ',' + b], id[(a + 1) + ',' + (b + 1)], id[a + ',' + (b + 1)]);
+      }
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('cell', new THREE.Float32BufferAttribute(cellAttr, 1));
+  g.setIndex(index);
+  g.computeBoundingSphere();
+  return g;
+}
+
+const data = await (await fetch('data/globe.json')).json();
+const cells = data.cells;
+const loader = new THREE.TextureLoader();
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+const textures = await Promise.all(data.atlases.map((src) => loader.loadAsync(src)));
+const pickables = textures.map((tex, ti) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAniso;
+  const mesh = new THREE.Mesh(buildCells(cells, ti), makeMaterial(tex));
+  scene.add(mesh);
+  return mesh;
+});
+// thin grey outline just inside each country's edge, so mostly-white flags still read as separate
+scene.add(new THREE.Mesh(buildCells(cells, -1, 'rim', 0.9993),
+  new THREE.MeshStandardMaterial({ color: 0xa9b2bf, roughness: 0.9 })));
+statusEl.remove();
+
+// ---- search ---------------------------------------------------------------
+const list = document.getElementById('country-list');
+const byName = new Map();
+[...cells].map((c, i) => [c.name, i]).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, i]) => {
+  byName.set(name.toLowerCase(), i);
+  const o = document.createElement('option'); o.value = name; list.appendChild(o);
+});
+const search = document.getElementById('country-search');
+function findCountry() {
+  const q = search.value.trim().toLowerCase();
+  if (!q) return;
+  let i = byName.get(q);
+  if (i === undefined) for (const [name, j] of byName) if (name.startsWith(q)) { i = j; break; }
+  if (i === undefined) for (const [name, j] of byName) if (name.includes(q)) { i = j; break; }
+  if (i !== undefined) { flyTo(i); search.blur(); }
+}
+document.getElementById('finder').addEventListener('submit', (ev) => { ev.preventDefault(); findCountry(); });
+search.addEventListener('change', findCountry);
+
+let fly = null, pinned = -1;
+function flyTo(i) {
+  touched = true;
+  controls.autoRotate = false;
+  pinned = i;
+  const dist = Math.min(camera.position.length(), Math.max(2.4, 0.62 * fitDist));
+  fly = { from: camera.position.clone().normalize(), to: new THREE.Vector3(...cells[i].c), dist0: camera.position.length(),
+          dist, t0: performance.now(), dur: reduceMotion ? 1 : 1100 };
+  hoverUniform.value = i;
+}
+
+// ---- hover / tap ------------------------------------------------------------
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let pointer = null, downAt = null;
+const unitSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+const centres = cells.map((c) => new THREE.Vector3(...c.c));
+
+function pick(x, y) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  if (hit) return hit.object.geometry.getAttribute('cell').getX(hit.face.a);
+  // on a white border: fall back to the nearest country centre
+  const p = ray.ray.intersectSphere(unitSphere, new THREE.Vector3());
+  if (!p) return -1;
+  let best = -1, bd = -2;
+  centres.forEach((c, i) => { const d = c.dot(p); if (d > bd) { bd = d; best = i; } });
+  return best;
+}
+function showTip(i, x, y) {
+  if (i < 0) { tip.style.transform = 'translate(-9999px,0)'; return; }
+  tip.querySelector('.name').textContent = cells[i].name;
+  tip.querySelector('.meta').textContent = cells[i].iso.toUpperCase();
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  const px = Math.min(Math.max(8, x + 16), innerWidth - w - 8);
+  const py = Math.min(Math.max(8, y + 18), innerHeight - h - 8);
+  tip.style.transform = `translate(${px}px, ${py}px)`;
+}
+function screenOf(i) {
+  const v = new THREE.Vector3(...cells[i].c).project(camera);
+  const r = renderer.domElement.getBoundingClientRect();
+  return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
+}
+
+renderer.domElement.addEventListener('pointermove', (ev) => {
+  if (ev.pointerType === 'mouse') pointer = [ev.clientX, ev.clientY];
+});
+renderer.domElement.addEventListener('pointerleave', () => { pointer = null; });
+renderer.domElement.addEventListener('pointerdown', (ev) => { downAt = [ev.clientX, ev.clientY]; });
+renderer.domElement.addEventListener('pointerup', (ev) => {
+  if (!downAt || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 6) return;
+  const i = pick(ev.clientX, ev.clientY);
+  pinned = (i === pinned) ? -1 : i;
+  if (ev.pointerType !== 'mouse') pointer = null;
+});
+
+// ---- loop ---------------------------------------------------------------------
+let fitDist = 3.9, touched = false;
+controls.addEventListener('start', () => { touched = true; });
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  // distance at which the whole globe fits the narrower screen dimension with a margin
+  const vf = THREE.MathUtils.degToRad(camera.fov) / 2, hf = Math.atan(Math.tan(vf) * camera.aspect);
+  fitDist = 1.22 / Math.sin(Math.min(vf, hf));
+  controls.maxDistance = Math.max(7, fitDist * 1.4);
+  if (!touched && !fly) camera.position.setLength(fitDist);
+}
+addEventListener('resize', resize);
+resize();
+
+function frame(now) {
+  if (fly) {
+    const t = Math.min(1, (now - fly.t0) / fly.dur), k = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const dir = fly.from.clone().lerp(fly.to, k).normalize();
+    camera.position.copy(dir.multiplyScalar(fly.dist0 + (fly.dist - fly.dist0) * k));
+    if (t >= 1) fly = null;
+  }
+  controls.update();
+  const fade = String(Math.min(1, Math.max(0, (camera.position.length() - 0.72 * fitDist) / (0.22 * fitDist))));
+  const headFade = about.hidden ? fade : '1';
+  if (masthead.style.opacity !== headFade) masthead.style.opacity = headFade;
+  if (hint.style.opacity !== fade) hint.style.opacity = fade;
+  let i = -1, x = 0, y = 0;
+  if (pointer) { i = pick(pointer[0], pointer[1]); [x, y] = pointer; }
+  renderer.domElement.classList.toggle('pointing', i >= 0);
+  if (i < 0 && pinned >= 0) {
+    const front = new THREE.Vector3(...cells[pinned].c).dot(camera.position) > 1;
+    if (front) { i = pinned; [x, y] = screenOf(pinned); } else if (!fly) pinned = -1;
+  }
+  hoverUniform.value = i;
+  showTip(i, x, y);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
